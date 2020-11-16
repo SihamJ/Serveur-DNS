@@ -30,11 +30,9 @@ int main(int argc, char **argv)
 
     //La fonction read_servers stock les info des serveurs racines dans le tableau s, et renvoie le nombre de serveurs racines trouvés.
 		nbServers=read_servers(&s,argv[1]);
-    //Lecture des requêtes
-    //Cas 1: requêtes envoyées en ligne de commande
-    //TO_DO: améliorer le test, cas ou l'argument suivant est la bonne requete
 
-		//Cas1: lecture des requêtes à partir de la ligne de commande
+			//Cas1: lecture des requêtes à partir de la ligne de commande
+			//TO_DO: améliorer le test, cas ou l'argument suivant est la bonne requete
 			if(is_request(argv[2])){
       	r=(request*) malloc(sizeof(request)*(argc-1));
 
@@ -42,208 +40,87 @@ int main(int argc, char **argv)
       		nbRequests+=read_request_from_stdin(&r[j],argv[i]);
 				}
 
-		//cas2: Lecture des requêtes à partir d'un fichier
+			//cas2: Lecture des requêtes à partir d'un fichier
 			else
 				nbRequests = read_requests_from_file(&r,argv[2]);
 
+			//Si aucune requête n'a été lue
 	    if (nbRequests==0){
-      	perror("Aucune requête lue\n");
+      	fprintf(stderr, "Aucune requête lue\n");
       	exit(EXIT_FAILURE);
-    	}
+    		}
 
-		printf("\n____________________START_____________________\n\n\n");
-		//DEBUT
+		//DEBUT DE LANCEMENT DE REQUÊTES
+		printf("\n________________________________________START________________________________________\n\n\n");
+
 		for(int i=0;i<nbRequests;i++){
 
-			int sockracine,socksousdomaine,sockdomaine,size;
+			int size,sockfd[3];
 			socklen_t addrlen;
 			struct sockaddr_in6 dest1,dest2,dest3;
 			char ip1[BLOCKSIZE],ip2[BLOCKSIZE],ip3[BLOCKSIZE],port[5];
 			int port1,port2,port3;
+			server *sr,*ssd,result;
+
+			int k = lire_serveurs_racine(&sr,s,r[i].racine,nbServers);
 
 
-			if((sockracine=socket(AF_INET6,SOCK_DGRAM,0))==-1){
-				perror("socket");
-				exit(EXIT_FAILURE);
-			}
+			//Affichage des résultats
+			printf("%d | %d | %s\n",r[i].id,r[i].horodatage,r[i].domaine);
 
-			dest1.sin6_family = AF_INET6;
-			dest1.sin6_port = htons(s[1].port);
-			addrlen = sizeof(struct sockaddr_in6);
-
-			if(inet_pton(AF_INET6, convert_to_IPV6(s[1].ip), &dest1.sin6_addr)!=1){
+			//Si aucun serveur ne traite ce domaine
+			if(k==0){
+				printf("%d | %d | %s |0| %s DOMAINE INEXISTANT\n\n",r[i].id,r[i].horodatage,r[i].racine,r[i].racine);
 				continue;
 			}
+			//SINON
+			printf("%d | %d | %s |1",r[i].id,r[i].horodatage,r[i].racine);
+			//Afficher tous les serveurs
+			for(int j=0;j<k;j++)
+				printf("| %s, %s, %d ",r[i].racine,sr[j].ip,sr[j].port);
 
-			//envoyer le nom de domaine au serveur racine
-			if(sendto(sockracine,r[i].racine,strlen(r[i].racine), 0, (struct sockaddr *) &dest1, addrlen)==-1){
-				printf("\n\n");
-				continue;
-			}
-			//attendre l'adresse IP du domaine
-			if((size=recvfrom(sockracine,ip1,BLOCKSIZE,0,( struct sockaddr *) &dest1, &addrlen))==-1){
-				printf("\n\n");
-				continue;
-			}
-			ip1[size]='\0';
-
-			//Si pas trouvé
-			if(strncmp(ip1,"not found",9)==0){
-				printf("%d|%d|%s : DOMAINE INEXISTANT\n\n",r[i].id,r[i].horodatage,r[i].racine);
-				continue;
-			}
-
-
-			//ACK de l'IP
-			if(sendto(sockracine,"ack",4, 0, (struct sockaddr *) &dest1, addrlen)==-1){
-				printf("\n\n");
-				continue;
-			}
-			//attendre le n° de port
-			if((size=recvfrom(sockracine,port,5,0,( struct sockaddr *) &dest1, &addrlen))==-1){
-				printf("\n\n");
-				continue;
-			}
-			//ACK du n° de Port
-			if(sendto(sockracine,"ack",4, 0, (struct sockaddr *) &dest1, addrlen)==-1){
-				printf("\n\n");
-				continue;
-			}
-
-			port[size]='\0';
-			port1=atoi(port);
-			//Affichage résultat
-			printf("%d|%d|%s : %s %d\n",r[i].id,r[i].horodatage,r[i].racine,ip1,port1);
-
-
-			//Deuxième socket pour sous_domaine
-			if((socksousdomaine=socket(AF_INET6,SOCK_DGRAM,0))==-1){
-				perror("socket");
-				exit(EXIT_FAILURE);
-			}
-
-			dest2.sin6_family = AF_INET6;
-			dest2.sin6_port = htons(port1);
-			addrlen = sizeof(struct sockaddr_in6);
-
-			if(inet_pton(AF_INET6,convert_to_IPV6(ip1), &dest2.sin6_addr)!=1){
-				printf("\n\n");
-				continue;
-			}
-
-
-			//envoyer le sous_domaine
-			if(sendto(socksousdomaine,r[i].sous_domaine,strlen(r[0].sous_domaine), 0, (struct sockaddr *) &dest2, addrlen)==-1){
-				printf("\n\n");
-				continue;
-			}
-
-			//attendre la reception de l'IP
-			if((size=recvfrom(socksousdomaine,ip2,BLOCKSIZE,0,( struct sockaddr *) &dest2, &addrlen))==-1){
-				printf("\n\n");
-				continue;
-			}
-				ip2[size]='\0';
-			//si pas trouvé
-			if(strncmp(ip2,"not found",9)==0){
-				printf("%d|%d|%s : DOMAINE INEXISTANT\n\n",r[i].id,r[i].horodatage,r[i].sous_domaine);
-				continue;
-			}
-
-
-
-			//ACK de l'IP
-			if(sendto(socksousdomaine,"ack",4, 0, (struct sockaddr *) &dest2, addrlen)==-1){
-				printf("\n\n");
-				continue;
-			}
-
-			//attendre la reception du n° de Port
-			if((size=recvfrom(socksousdomaine,port,BLOCKSIZE,0,( struct sockaddr *) &dest2, &addrlen))==-1){
-				printf("\n\n");
-				continue;
-			}
-
-			//ACK du n° de Port
-			if(sendto(socksousdomaine,"ack",4, 0, (struct sockaddr *) &dest2, addrlen)==-1){
-				printf("\n\n");
-				continue;
-			}
-
-			port[size]='\0';
-			port2=atoi(port);
-
-			//afficha du résultat du sous domaine
-			printf("%d|%d|%s : %s %d\n",r[i].id,r[i].horodatage,r[i].sous_domaine,ip2,port2);
-
-
-			//3eme socket pour le nom de domaine
-			if((sockdomaine=socket(AF_INET6,SOCK_DGRAM,0))==-1){
-				perror("socket");
-				exit(EXIT_FAILURE);
-			}
-
-			dest3.sin6_family = AF_INET6;
-			dest3.sin6_port = htons(port2);
-			addrlen = sizeof(struct sockaddr_in6);
-
-			if(inet_pton(AF_INET6,convert_to_IPV6(ip2), &dest3.sin6_addr)!=1){
-				printf("\n\n");
-				continue;
-			}
-
-
-			//envoie du nom de domaine au serveur de nom
-			if(sendto(sockdomaine,r[i].domaine,strlen(r[i].domaine), 0, (struct sockaddr *) &dest3, addrlen)==-1){
-				printf("\n\n");
-				continue;
-			}
-
-
-			//attendre la reception de l'adresse IP
-			if((size=recvfrom(sockdomaine,ip3,BLOCKSIZE,0,( struct sockaddr *) &dest3, &addrlen))==-1){
-				printf("\n\n");
-				continue;
-			}
-			ip3[size]='\0';
-			//si pas trouvé
-			if(strncmp(ip3,"not found",9)==0){
-				printf("%d|%d|%s : DOMAINE INEXISTANT\n\n",r[i].id,r[i].horodatage,r[i].sous_domaine);
-				continue;
-			}
-
-
-
-			//ACK de l'IP
-			if(sendto(sockdomaine,"ack",4, 0, (struct sockaddr *) &dest3, addrlen)==-1){
-				printf("\n\n");
-				continue;
-			}
-
-			//attendre la reception du n° de Port
-			if((size=recvfrom(sockdomaine,port,BLOCKSIZE,0,( struct sockaddr *) &dest3, &addrlen))==-1){
-				printf("\n\n");
-				continue;
-			}
-
-			//ACK du n° de Port
-			if(sendto(sockdomaine,"ack",4, 0, (struct sockaddr *) &dest3, addrlen)==-1){
-				printf("\n\n");
-				continue;
-			}
-
-			port[size]='\0';
-			port3=atoi(port);
-
-			//affichage du résultat
-			printf("%d|%d|%s : %s %d\n",r[i].id,r[i].horodatage,r[i].domaine,ip3,port3);
 			printf("\n");
 
-			close(sockdomaine);
-			close(sockracine);
-			close(socksousdomaine);
+
+			int nbSousDomaines = lire_serveurs_sous_domaine(&ssd,sr,r[i].sous_domaine,k);
+
+			//Affichage des résultats
+			printf("%d | %d | %s\n",r[i].id,r[i].horodatage,r[i].domaine);
+			//Si aucun serveur ne traite ce domaine
+			if(nbSousDomaines==0){
+				printf("%d | %d | %s |0| %s DOMAINE INEXISTANT\n\n",r[i].id,r[i].horodatage,r[i].sous_domaine,r[i].sous_domaine);
+				continue;
 			}
+			//SINON
+			printf("%d | %d | %s |1",r[i].id,r[i].horodatage,r[i].sous_domaine);
+			//Afficher tous les serveurs
+			for(int j=0;j<nbSousDomaines;j++){
+				printf("| %s, %s, %d ",r[i].sous_domaine,ssd[j].ip,ssd[j].port);
+			}
+			printf("\n");
+
+			result = resultat(ssd,r,nbSousDomaines,i);
+
+			//Affichage des résultats
+			printf("%d | %d | %s\n",r[i].id,r[i].horodatage,r[i].domaine);
+			//Si aucun serveur ne traite ce domaine
+			if(result.port==-1){
+				printf("%d | %d | %s |0| %s DOMAINE INEXISTANT\n\n",r[i].id,r[i].horodatage,r[i].domaine,r[i].domaine);
+				continue;
+			}
+			//SINON
+			printf("%d | %d | %s |1",r[i].id,r[i].horodatage,r[i].domaine);
+			printf("| %s, %s, %d ",r[i].domaine,result.ip,result.port);
+
+			printf("\n\n");
+
+
+			for(int i=0;i<3;i++)
+				close(sockfd[i]);
+	}
+
+
 	//FIN
-	printf("\n______________________END_____________________\n\n");
+	printf("\n_________________________________________END_________________________________________\n\n\n");
 	return (EXIT_SUCCESS);
 }

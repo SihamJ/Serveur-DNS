@@ -16,33 +16,22 @@
 
 int main(int argc, char **argv){
 
-  if(argc!=2){
-    fprintf(stderr, "Usage: %s <fichier de serveurs de noms racines>\n",argv[0] );
+  if(argc!=3){
+    fprintf(stderr, "Usage: %s <fichier de serveurs de noms racines> <N° de Port>\n",argv[0] );
     exit(-1);
   }
 
 	int nbServers;
-  name_server *ns,*pt;
+  name_server *ns;
+	char **r;
 
 	if((nbServers=read_name_servers(&ns,argv[1]))<=0){
 		perror("read_name_servers");
 		exit(EXIT_FAILURE);
 	}
-
-	//To_DO select to read requests
-
-	fd_set readfds,readfds2;
-	int nfds;
-
-	/*TO_DO:
-	Boucler:
-	1-attendre la reception du nom de domaine
-	2-une fois reçu, le chercher dans le tableau ns
-	3-renvoyer l'IP correspondant
-	*/
-	int size,i;
+	int size,i,k;
 	char buf[BLOCKSIZE],*ip,port[5],notfound[]="not found";
-	int server_socket = set_up_server(8050);
+	int server_socket = set_up_server(atoi(argv[2]));
 	struct sockaddr_in6 client;
 	socklen_t addrlen;
 	addrlen = sizeof( struct sockaddr_in6);
@@ -55,38 +44,43 @@ int main(int argc, char **argv){
 		}
 
 	buf[size]='\0';
-	pt=ns;
+	name_server *res=(name_server*) malloc(sizeof(name_server));
+	k=0;
 
 	//on cherche le nom de domaine dans le tableau ns, si trouvé on récupère l'adresse ip et quitte la boucle
 	for( i=0;i<nbServers;i++){
-		if(strcmp(pt[i].nom,buf)==0){
-			ip=malloc(strlen(pt[i].ip)+1);
-			sprintf(port,"%d",pt[i].port);
-			strcpy(ip,pt[i].ip);
-			break;
+		if(strcmp(ns[i].nom,buf)==0){
+			res[k].ip = malloc(strlen(ns[i].ip)+1);
+			strcpy(res[k].ip,ns[i].ip);
+			res[k].port = ns[i].port;
+			k++;
+			res=realloc(res,sizeof(name_server)*(k+1));
 			}
 		}
 
-	//si arrivée à la fin de la boucle sans trouver le nom de domaine, on envoie not found au client
-	if(i==nbServers){
-		if(sendto(server_socket,notfound,strlen(notfound), 0, (struct sockaddr *) &client, addrlen)==-1){
-			continue;
-		}
-	}
+	//on envoie le nombre de serveur trouvé au client pour qu'il prépare sa boucle
+	char nb[2];
+	sprintf(nb,"%d",k);
+	nb[1]='\0';
 
-	//sinon, on envoie l'IP et le Port
-	else{
+	if(sendto(server_socket,nb, 2,0, (struct sockaddr *) &client, addrlen)==-1){
+		continue;
+		}
+
+	//On envoie les IP et les Ports des k serveurs trouvés.
+	for(int i=0;i<k;i++){
 		//envoie de l'IP
-		if(sendto(server_socket,ip,strlen(ip), 0, (struct sockaddr *) &client, addrlen)==-1){
+		if(sendto(server_socket,res[i].ip,strlen(res[i].ip), 0, (struct sockaddr *) &client, addrlen)==-1){
 			continue;
 			}
 
 		//ACK de l'IP
 		if((size=recvfrom(server_socket,buf,BLOCKSIZE,0,( struct sockaddr *) &client, &addrlen ))==-1){
-				continue;
-				}
+			continue;
+			}
 
 		//Envoie du n° de Port
+		sprintf(port,"%d",res[i].port);
 		if(sendto(server_socket,port,strlen(port), 0, (struct sockaddr *) &client, addrlen)==-1){
 				continue;
 				}
@@ -95,8 +89,12 @@ int main(int argc, char **argv){
 		if((size=recvfrom(server_socket,buf,BLOCKSIZE,0,( struct sockaddr *) &client, &addrlen ))==-1){
 				continue;
 				}
-		}
 	}
+
+	}
+
 	close(server_socket);
+
+
 	return 0;
 }

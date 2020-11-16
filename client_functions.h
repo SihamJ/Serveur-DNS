@@ -33,4 +33,6 @@ int read_requests_from_file(request **r,char *file);
 int read_request_from_stdin(request *r,char *req);
 int est_IPV4(char *ip);
 int is_request(char *arg);
-int set_up_client_socket(server s);
+int lire_serveurs_racine(server **sr,server *s,char *nom, int nbServers);
+int lire_serveurs_sous_domaine(server **sr,server *s,char *nom, int nbServers);
+server resultat(server *ssd,request *r,int nbSousDomaines,int i);
