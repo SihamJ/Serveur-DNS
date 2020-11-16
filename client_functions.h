@@ -13,11 +13,13 @@
 #include "functions.h"
 #endif
 
+//pour stocker les serveurs racines
 typedef struct server{
   char *ip;
   int port;
 } server;
 
+//pour stocker les requêtes
 typedef struct request{
   int id;
   int horodatage;
@@ -26,13 +28,20 @@ typedef struct request{
   char *domaine;
 }request;
 
+//Prend en entrée un nom de domaine, met le nom de domaine dans la partie domaine de la structure requete, le sous domaine dans la partie sous domaine et la racine dans la partie racine.
 void split_domain(request *rq,char *domain);
-char* convert_to_IPV6(char *adress);
+//lis la liste des serveurs racines à partir d'un fichier et les mets dans le pointeur "s", retourne le nombre de serveurs racines.
 int read_servers(server **s,char *file);
+//lis les requêtes à partir d'un fichier et les mets dans le pointeur "r"
 int read_requests_from_file(request **r,char *file);
-int read_request_from_stdin(request *r,char *req);
-int est_IPV4(char *ip);
+//recupère une requete sous forme de chaine de caractère et la met dans une structure. Nous servira pour lire les requetes à partir de la ligne de commande.
+int read_request_from_argv(request *r,char *req);
+//test si la chaine "arg" est une requête correcte
 int is_request(char *arg);
+//cette fonction cherchent à partir des serveurs racines "s" tous les serveurs de noms qui traitent le sous domaine "nom", les mets dans le pointeur "sr" et retourne le nombre de serveurs trouvés
 int lire_serveurs_racine(server **sr,server *s,char *nom, int nbServers);
-int lire_serveurs_sous_domaine(server **sr,server *s,char *nom, int nbServers);
-server resultat(server *ssd,request *r,int nbSousDomaines,int i);
+/*Cette fonction cherchent à partir des serveurs de noms (qu'on aura préalablement trouvé à l'aide de la fonctio précédente tous les serveurs de noms qui traitent le domaine "nom",
+les mets dans le pointeur ssd et retourne le nombre de serveurs trouvés.*/
+int lire_serveurs_sous_domaine(server **ssd,server *sr,char *nom, int nbServers);
+//Cette fonction prend en paramètre un nom de domaine "nom", un pointeur sur tous les serveurs de Noms qui traitent son sous domaine, et retourne le premier résultat trouvé.
+server resultat(server *ssd,char *nom,int nbSousDomaines);

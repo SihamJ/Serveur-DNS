@@ -6,8 +6,9 @@
 #define __SERVER_FUNCTIONS__
 #include "server_functions.h"
 #endif
+#define BLOCKSIZE 32
 
-
+//Lis les serveurs de noms à partir d'un fichier, et les mets dans le pointeur "ns"
 int read_name_servers(name_server **ns,char *file){
 
   int nbServeurs=0,i=0;
@@ -58,6 +59,7 @@ int read_name_servers(name_server **ns,char *file){
 	return nbServeurs;
 }
 
+//crée un socket, et fait un bind au port "port". Retourne le descripteur du socket.
 int set_up_server(int port){
 
 	int sockfd;
@@ -81,4 +83,69 @@ int set_up_server(int port){
   }
 
 	return sockfd;
+}
+
+//reçoit un nom de domaine, cherche tous les serveurs qui traitent ce noms de domaines et les mets dans le pointeur "s". Renvoie le nombre de serveurs trouvés
+int find_servers(name_server **res,int nbServers,name_server *ns,char *nom){
+	int k=0;
+	*res=(name_server*) malloc(sizeof(name_server));
+
+	for(int i=0;i<nbServers;i++){
+		if(strcmp(ns[i].nom,nom)==0){
+			(*res)[k].ip = malloc(strlen(ns[i].ip)+1);
+			strcpy((*res)[k].ip,ns[i].ip);
+			(*res)[k].port = ns[i].port;
+			k++;
+			*res=realloc(*res,sizeof(name_server)*(k+1));
+			}
+		}
+	return k;
+}
+
+//fonction qui envoi au client tous les k serveurs trouvés.
+void send_to_client(int server_socket,struct sockaddr_in6 *client,socklen_t *addrlen,int k, name_server *res){
+	//on envoie le nombre de serveur trouvé au client pour qu'il prépare sa boucle
+	char nb[2],buf[BLOCKSIZE],port[5];
+	sprintf(nb,"%d",k);
+	nb[1]='\0';
+
+	//envoi du nombre de serveurs trouvés au client
+	if(sendto(server_socket,nb, 2,0, (struct sockaddr *) client, *addrlen)==-1){
+		perror("sendto");
+		exit(EXIT_FAILURE);
+		}
+
+	//attente ACK du nombre de serveurs
+	if(recvfrom(server_socket,buf,BLOCKSIZE,0,( struct sockaddr *) client, addrlen )==-1){
+		perror("recvfrom");
+		exit(EXIT_FAILURE);
+		}
+
+	//On envoie les IP et les Ports des k serveurs trouvés qui sont stockés dans "res"
+	for(int i=0;i<k;i++){
+		//envoie de l'IP
+		if(sendto(server_socket,res[i].ip,strlen(res[i].ip), 0, (struct sockaddr *) client, *addrlen)==-1){
+			perror("sendto");
+			exit(EXIT_FAILURE);
+			}
+
+		//attente ACK de l'IP
+		if(recvfrom(server_socket,buf,BLOCKSIZE,0,( struct sockaddr *) client, addrlen )==-1){
+			perror("recvfrom");
+			exit(EXIT_FAILURE);
+			}
+
+		//Envoie du n° de Port
+		sprintf(port,"%d",res[i].port);
+		if(sendto(server_socket,port,strlen(port), 0, (struct sockaddr *) client, *addrlen)==-1){
+				perror("sendto");
+				exit(EXIT_FAILURE);
+				}
+
+		//attente ACK du n° de port
+		if(recvfrom(server_socket,buf,BLOCKSIZE,0,( struct sockaddr *) client, addrlen )==-1){
+			perror("recvfrom");
+			exit(EXIT_FAILURE);
+			}
+		}
 }

@@ -148,7 +148,7 @@ int read_requests_from_file(request **r,char *file){
   return nbRequetes;
 }
 
-int read_request_from_stdin(request *r,char *arg){
+int read_request_from_argv(request *r,char *arg){
 
   char *cp=arg,*cp2=arg,*id,*horodatage,*domain;
   int nbDots=0,size=0;
@@ -210,7 +210,7 @@ int is_request(char *arg){
   return 0;
 }
 
-
+//cette fonction cherchent à partir des serveurs racines "s" tous les serveurs de noms qui traitent le sous domaine "nom", les mets dans le pointeur "sr" et retourne le nombre de serveurs trouvés
 int lire_serveurs_racine(server **sr,server *s,char *nom, int nbServers){
 
 	int sockfd,size;
@@ -246,6 +246,13 @@ int lire_serveurs_racine(server **sr,server *s,char *nom, int nbServers){
 		perror("recvfrom");
 		exit(EXIT_FAILURE);
 	}
+
+	//ACK du nombre de serveurs trouvés
+	if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest1, addrlen)==-1){
+		perror("sendto");
+		exit(EXIT_FAILURE);
+	}
+
 	nb[size]='\0';
 	int k=atoi(nb);
 	//Si aucun serveur trouvé
@@ -284,7 +291,9 @@ int lire_serveurs_racine(server **sr,server *s,char *nom, int nbServers){
 	return k;
 }
 
-int lire_serveurs_sous_domaine(server **sr,server *s,char *nom, int nbServers){
+/*Cette fonction cherchent à partir des serveurs de noms (qu'on aura préalablement trouvé à l'aide de la fonctio précédente tous les serveurs de noms qui traitent le domaine "nom",
+les mets dans le pointeur ssd et retourne le nombre de serveurs trouvés.*/
+int lire_serveurs_sous_domaine(server **ssd,server *sr,char *nom, int nbServers){
 
 	int sockfd,size,count=0;
 	socklen_t addrlen;
@@ -296,10 +305,10 @@ int lire_serveurs_sous_domaine(server **sr,server *s,char *nom, int nbServers){
 	for(int i=0;i<nbServers;i++){
 
 	dest1.sin6_family = AF_INET6;
-	dest1.sin6_port = htons(s[i].port);
+	dest1.sin6_port = htons(sr[i].port);
 	addrlen = sizeof(struct sockaddr_in6);
 
-	if(inet_pton(AF_INET6, convert_to_IPV6(s[i].ip), &dest1.sin6_addr)!=1){
+	if(inet_pton(AF_INET6, convert_to_IPV6(sr[i].ip), &dest1.sin6_addr)!=1){
 		fprintf(stderr, "INET_PTON: ERREUR\n");
 		exit(EXIT_FAILURE);
 	}
@@ -321,6 +330,13 @@ int lire_serveurs_sous_domaine(server **sr,server *s,char *nom, int nbServers){
 		perror("recvfrom");
 		exit(EXIT_FAILURE);
 	}
+
+	//ACK du nombre de serveurs trouvés
+	if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest1, addrlen)==-1){
+		perror("sendto");
+		exit(EXIT_FAILURE);
+	}
+
 	nb[size]='\0';
 	int k=atoi(nb);
 	//Si aucun serveur trouvé
@@ -332,7 +348,7 @@ int lire_serveurs_sous_domaine(server **sr,server *s,char *nom, int nbServers){
 		}
 
 	//Sinon on traite
-	*sr=realloc(*sr,(count+1)*(nbServers+1)*sizeof(server));
+	*ssd=realloc(*ssd,(count+1)*(nbServers+1)*sizeof(server));
 
 	for(int j=0;j<k;j++){
 	//attendre l'adresse IP du domaine n°j
@@ -346,8 +362,8 @@ int lire_serveurs_sous_domaine(server **sr,server *s,char *nom, int nbServers){
 		exit(EXIT_FAILURE);
 	}
 	ip1[size]='\0';
-	(*sr)[(count)*j].ip = malloc(size+1);
-	strncpy((*sr)[(count)*j].ip,ip1,size);
+	(*ssd)[(count)*j].ip = malloc(size+1);
+	strncpy((*ssd)[(count)*j].ip,ip1,size);
 	//attendre le n° de port
 	if((size=recvfrom(sockfd,port,5,0,( struct sockaddr *) &dest1, &addrlen))==-1){
 		perror("recvfrom");
@@ -359,7 +375,7 @@ int lire_serveurs_sous_domaine(server **sr,server *s,char *nom, int nbServers){
 		exit(EXIT_FAILURE);
 	}
 	port[size]='\0';
-	(*sr)[(count)*j].port=atoi(port);
+	(*ssd)[(count)*j].port=atoi(port);
 	}
 	count ++;
 }
@@ -367,7 +383,8 @@ int lire_serveurs_sous_domaine(server **sr,server *s,char *nom, int nbServers){
 	return count;
 }
 
-server resultat(server *ssd,request *r,int nbSousDomaines,int i){
+//Cette fonction prend en paramètre un nom de domaine "nom", un pointeur sur tous les serveurs de Noms qui traitent son sous domaine, et retourne le premier résultat trouvé.
+server resultat(server *ssd,char *nom,int nbSousDomaines){
 
 	int size,sockfd;
 	socklen_t addrlen;
@@ -392,7 +409,7 @@ server resultat(server *ssd,request *r,int nbSousDomaines,int i){
 		}
 
 		//envoie du nom de domaine au serveur de nom
-		if(sendto(sockfd,r[i].domaine,strlen(r[i].domaine), 0, (struct sockaddr *) &dest3, addrlen)==-1){
+		if(sendto(sockfd,nom,strlen(nom), 0, (struct sockaddr *) &dest3, addrlen)==-1){
 			perror("sendto");
 			exit(EXIT_FAILURE);
 		}

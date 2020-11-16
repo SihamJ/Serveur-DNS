@@ -29,9 +29,9 @@ domaine: domaine.o $(SOBJ)
 
 %.o: %.c $(SH)
 	$(CC) -o $@ -c $<
-#lance tous les serveurs
+
 clear:
 	rm *.o $(EXEC)
-#ferme les ports ouverts
-close:
-	lsof -t -i:8050,8051,8090,8000,8004 | xargs kill -9
+
+tar:
+	tar -czvf sihamJANATI.tar.gz *.c *.h files makefile tests
