@@ -308,7 +308,7 @@ int trouver_serveurs_racine(server **sr,server *s,char *nom, int nbServers,int i
 
 							readfds4=readfds3;
 							nr2 = select(nfds2, &readfds4, 0, 0, &timeout);
-							if(nr == -1){
+							if(nr2 == -1){
 								perror("select");
 								exit(EXIT_FAILURE);
 								}
@@ -503,14 +503,17 @@ int trouver_serveurs_sous_domaine(server **ssd,server *sr,char *nom, int nbServe
 //Cette fonction prend en paramètre un nom de domaine "nom", un pointeur sur tous les serveurs de Noms qui traitent son sous domaine, et retourne le premier résultat trouvé.
 server resultat(server *ssd,char *nom,int nbSousDomaines){
 
-	int size,sockfd;
+	int size,sockfd,port3,nfds,nfds2,ns,ns2,m;
 	socklen_t addrlen;
 	struct sockaddr_in6 dest3;
 	char ip3[BLOCKSIZE],port[5];
-	int port3;
 	server res;
 
-	for(int m=0;m<nbSousDomaines;m++){
+	fd_set readfds,readfds2,readfds3,readfds4;
+	struct timeval timeout;
+	m=0;
+
+	while(1){
 
 		dest3.sin6_family = AF_INET6;
 		dest3.sin6_port = htons(ssd[m].port);
@@ -525,47 +528,101 @@ server resultat(server *ssd,char *nom,int nbSousDomaines){
 			exit(EXIT_FAILURE);
 		}
 
-		//envoie du nom de domaine au serveur de nom
 		if(sendto(sockfd,nom,strlen(nom), 0, (struct sockaddr *) &dest3, addrlen)==-1){
 			perror("sendto");
 			exit(EXIT_FAILURE);
 		}
 
-		//attendre la reception de l'adresse IP
-		if((size=recvfrom(sockfd,ip3,BLOCKSIZE,0,( struct sockaddr *) &dest3, &addrlen))==-1){
-			perror("recvfrom");
+		FD_ZERO(&readfds);
+		FD_SET(sockfd,&readfds);
+		nfds=sockfd+1;
+
+
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 100;
+		readfds2=readfds;
+
+		if((ns=select(nfds,&readfds,0,0,&timeout))==-1){
+			perror("select");
 			exit(EXIT_FAILURE);
 		}
-		ip3[size]='\0';
-		//si pas trouvé
-		if(strncmp(ip3,"not found",9)==0)
-				continue;
+		else{
+			if(FD_ISSET(sockfd,&readfds)){
+				//attendre la reception de l'adresse IP
+				if((size=recvfrom(sockfd,ip3,BLOCKSIZE,0,( struct sockaddr *) &dest3, &addrlen))==-1){
+					perror("recvfrom");
+					exit(EXIT_FAILURE);
+				}
+				ip3[size]='\0';
+				//si pas trouvé
+				if(strncmp(ip3,"not found",9)==0){
+					m++;
+					continue;
+				}
+
+				res.ip=malloc(size+1);
+				strncpy(res.ip,ip3,size);
+				//ACK de l'IP
+				if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest3, addrlen)==-1){
+					perror("sendto");
+					exit(EXIT_FAILURE);
+				}
+
+				//deuxième select pour recupérer le n° de port
+				while(1){
+					FD_ZERO(&readfds3);
+					FD_SET(sockfd,&readfds3);
+					nfds2=sockfd+1;
 
 
-		res.ip=malloc(size+1);
-		strncpy(res.ip,ip3,size);
-		//ACK de l'IP
-		if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest3, addrlen)==-1){
-			perror("sendto");
-			exit(EXIT_FAILURE);
+					timeout.tv_sec = 0;
+					timeout.tv_usec = 100;
+
+					readfds4=readfds3;
+
+					if((ns2=select(nfds2,&readfds3,0,0,&timeout))==-1){
+						perror("select");
+						exit(EXIT_FAILURE);
+					}
+					else{
+						if(FD_ISSET(sockfd,&readfds3)){
+							//attendre la reception du n° de Port
+							if((size=recvfrom(sockfd,port,BLOCKSIZE,0,( struct sockaddr *) &dest3, &addrlen))==-1){
+								perror("recvfrom");
+								exit(EXIT_FAILURE);
+							}
+
+							//ACK du n° de Port
+							if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest3, addrlen)==-1){
+								perror("sendto");
+								exit(EXIT_FAILURE);
+							}
+
+							port[size]='\0';
+							res.port=atoi(port);
+							return res;
+						}
+						else{
+							//Timeout
+							m++;
+							if(m==nbSousDomaines){
+								res.port=-2;
+								return res;
+							}
+							break;
+						}
+					}
+				}
+
+			}
+			else{
+				//Timeout
+				m++;
+				if(m==nbSousDomaines){
+					res.port=-2;
+					return res;
+				}
+			}
 		}
-
-		//attendre la reception du n° de Port
-		if((size=recvfrom(sockfd,port,BLOCKSIZE,0,( struct sockaddr *) &dest3, &addrlen))==-1){
-			perror("recvfrom");
-			exit(EXIT_FAILURE);
-		}
-
-		//ACK du n° de Port
-		if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest3, addrlen)==-1){
-			perror("sendto");
-			exit(EXIT_FAILURE);
-		}
-
-		port[size]='\0';
-		res.port=atoi(port);
-		return res;
 	}
-	res.port=-1;
-	return res;
 }

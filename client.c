@@ -109,6 +109,11 @@ int main(int argc, char **argv)
 				printf("%d | %d | %s |0| %s DOMAINE INEXISTANT\n\n",r[i].id,r[i].horodatage,r[i].domaine,r[i].domaine);
 				continue;
 			}
+			//SI les serveur de noms de répondent pas
+			if(result.port==-2){
+				printf("%d | %d | %s |0| %s LES SERVEURS DE NOMS DE REPONDENT PAS\n\n",r[i].id,r[i].horodatage,r[i].domaine,r[i].domaine);
+				continue;
+			}
 			//SINON
 			printf("%d | %d | %s |1",r[i].id,r[i].horodatage,r[i].domaine);
 			printf("| %s, %s, %d ",r[i].domaine,result.ip,result.port);
