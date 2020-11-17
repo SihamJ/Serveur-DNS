@@ -8,12 +8,7 @@
 char* convert_to_IPV6(char *adress){
 
   if(!est_IPV4(adress) && !est_IPV6(adress)){
-		printf("%s\n",adress);
-		if(!est_IPV4(adress))
-			printf("not ipv4\n");
-			if(!est_IPV6(adress))
-				printf("not ipv6\n");
-    perror("Wrong adress format\nNot IPV4 nor IPV6\n");
+    fprintf(stderr,"%s: Wrong IP adress format\n",adress);
     exit(EXIT_FAILURE);
   }
 

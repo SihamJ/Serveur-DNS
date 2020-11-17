@@ -327,7 +327,7 @@ int trouver_serveurs_racine(server **sr,server *s,char *nom, int nbServers,int i
 									ip1[size]='\0';
 									(*sr)[m].ip = malloc(size+1);
 									strncpy((*sr)[m].ip,ip1,size);
-
+									(*sr)[m].ip[size]='\0';
 									//Nouveau appel à select pour récupérer le port
 										while(1){
 											FD_ZERO(&readfds5);
@@ -407,98 +407,171 @@ int trouver_serveurs_racine(server **sr,server *s,char *nom, int nbServers,int i
 	return k;
 }
 
-/*Cette fonction cherchent à partir des serveurs de noms (qu'on aura préalablement trouvé à l'aide de la fonction précédente tous les serveurs de noms qui traitent le domaine "nom",
-les mets dans le pointeur ssd et retourne le nombre de serveurs trouvés.*/
 int trouver_serveurs_sous_domaine(server **ssd,server *sr,char *nom, int nbServers){
+	int i,count,prev_count,size;
+	count = 0;
+	prev_count = 0;
+	server *cp;
 
-	int sockfd,size,count=0;
-	socklen_t addrlen;
-	struct sockaddr_in6 dest1;
-	char ip1[BLOCKSIZE],port[5];
-	int port1;
-
-
-	for(int i=0;i<nbServers;i++){
-
-	dest1.sin6_family = AF_INET6;
-	dest1.sin6_port = htons(sr[i].port);
-	addrlen = sizeof(struct sockaddr_in6);
-
-	if(inet_pton(AF_INET6, convert_to_IPV6(sr[i].ip), &dest1.sin6_addr)!=1){
-		fprintf(stderr, "INET_PTON: ERREUR\n");
-		exit(EXIT_FAILURE);
-	}
-
-	if((sockfd=socket(AF_INET6,SOCK_DGRAM,0))==-1){
-		perror("création socket");
-		exit(EXIT_FAILURE);
-	}
-
-	//envoyer le nom de domaine au serveur racine
-	if(sendto(sockfd,nom,strlen(nom), 0, (struct sockaddr *) &dest1, addrlen)==-1){
-		perror("sendto");
-		exit(EXIT_FAILURE);
-	}
-
-	//Nombre de serveur de noms trouvés
-	char nb[2];
-	if((size=recvfrom(sockfd,nb,2,0,( struct sockaddr *) &dest1, &addrlen))==-1){
-		perror("recvfrom");
-		exit(EXIT_FAILURE);
-	}
-
-	//ACK du nombre de serveurs trouvés
-	if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest1, addrlen)==-1){
-		perror("sendto");
-		exit(EXIT_FAILURE);
-	}
-
-	nb[size]='\0';
-	int k=atoi(nb);
-	//Si aucun serveur trouvé
-	if(k==0){
-		if(i==nbServers-1)
-			return 0;
-		else
+	for(i=0;i<nbServers;i++){
+		//contacter les serveurs un par un. Si un serveur est lent, ne pas le contacter.
+		if(sr[i].vitesse==0)
 			continue;
-		}
 
-	//Sinon on traite
-	*ssd=realloc(*ssd,(count+1)*(nbServers+1)*sizeof(server));
+		int sockfd;
+		socklen_t addrlen;
+		struct sockaddr_in6 dest;
+		char ip[BLOCKSIZE],port[5],nb[2];
+		int ns, nfds;
+		fd_set readfds;
+		struct timeval timeout;
 
-	for(int j=0;j<k;j++){
-	//attendre l'adresse IP du domaine n°j
-	if((size=recvfrom(sockfd,ip1,BLOCKSIZE,0,( struct sockaddr *) &dest1, &addrlen))==-1){
-		perror("recvfrom");
+			dest.sin6_family = AF_INET6;
+			dest.sin6_port = htons(sr[i].port);
+			addrlen = sizeof(struct sockaddr_in6);
+
+			if(inet_pton(AF_INET6, convert_to_IPV6(sr[i].ip), &dest.sin6_addr)!=1){
+				fprintf(stderr, "INET_PTON: ERREUR\n");
+				exit(EXIT_FAILURE);
+			}
+
+			if((sockfd=socket(AF_INET6,SOCK_DGRAM,0))==-1){
+				perror("création socket");
+				exit(EXIT_FAILURE);
+			}
+			//envoyer le nom de domaine au serveur racine
+			if(sendto(sockfd,nom,strlen(nom), 0, (struct sockaddr *) &dest, addrlen)==-1){
+				perror("sendto");
+				exit(EXIT_FAILURE);
+			}
+
+			FD_ZERO(&readfds);
+			FD_SET(sockfd,&readfds);
+			nfds = sockfd+1;
+			timeout.tv_sec = 0;
+			timeout.tv_usec = 100;
+
+			ns = select(nfds,&readfds,0,0,&timeout);
+			if(ns==-1){
+				perror("select");
+				exit(EXIT_FAILURE);
+			}
+			else{
+				if(FD_ISSET(sockfd,&readfds)){
+					//Nombre de serveurs de Nom trouvés
+					if((size=recvfrom(sockfd,nb,2,0,( struct sockaddr *) &dest, &addrlen))==-1){
+						perror("recvfrom");
+						exit(EXIT_FAILURE);
+					}
+					//ACK
+					if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest, addrlen)==-1){
+						perror("sendto");
+						exit(EXIT_FAILURE);
+					}
+					nb[size]='\0';
+					prev_count=count;
+					count+=atoi(nb);
+					//Si aucun serveur de nom trouvé on quitte la boucle et on passe au serveur suivant
+					if(atoi(nb)==0)
+						continue;
+					//SINON
+
+					*ssd = realloc(*ssd,(count+1)*sizeof(server));
+					//On recupère les IP et ports des serveurs de noms trouvés et on les stock dans *ssd
+					for(int k=0;k<count;k++){
+						FD_ZERO(&readfds);
+						FD_SET(sockfd,&readfds);
+						nfds = sockfd+1;
+						timeout.tv_sec = 0;
+						timeout.tv_usec = 100;
+
+						ns = select(nfds,&readfds,0,0,&timeout);
+						if(ns==-1){
+							perror("select");
+							exit(EXIT_FAILURE);
+						}
+						if(FD_ISSET(sockfd,&readfds)){
+							//recevoir l'IP
+							if((size=recvfrom(sockfd,ip,BLOCKSIZE,0,( struct sockaddr *) &dest, &addrlen))==-1){
+								perror("recvfrom");
+								exit(EXIT_FAILURE);
+							}
+							//ACK IP
+							if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest, addrlen)==-1){
+								perror("sendto");
+								exit(EXIT_FAILURE);
+							}
+							ip[size]='\0';
+							//printf("%s\n",ip);
+							(*ssd)[prev_count+k].ip = malloc(size+1);
+							strncpy((*ssd)[prev_count+k].ip,ip,size);
+							(*ssd)[prev_count+k].ip[size]='\0';
+							FD_ZERO(&readfds);
+							FD_SET(sockfd,&readfds);
+							nfds = sockfd+1;
+							timeout.tv_sec = 0;
+							timeout.tv_usec = 100;
+
+							ns = select(nfds,&readfds,0,0,&timeout);
+							if(ns==-1){
+								perror("select");
+								exit(EXIT_FAILURE);
+							}
+
+							if(FD_ISSET(sockfd,&readfds)){
+								//recevoir le Port
+								if((size=recvfrom(sockfd,port,5,0,( struct sockaddr *) &dest, &addrlen))==-1){
+									perror("recvfrom");
+									exit(EXIT_FAILURE);
+								}
+								//ACK Port
+								if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest, addrlen)==-1){
+									perror("sendto");
+									exit(EXIT_FAILURE);
+								}
+								port[size]='\0';
+								//printf("%s\n",port);
+								(*ssd)[prev_count+k].port = atoi(port);
+								(*ssd)[prev_count+k].vitesse = 1;
+							}
+
+							else{
+								count = prev_count;
+								*ssd = realloc (*ssd, prev_count*sizeof(server));
+								sr[i].vitesse = 0;
+								break;
+							}
+
+						}
+						else{
+							count = prev_count;
+							*ssd = realloc (*ssd, prev_count*sizeof(server));
+							sr[i].vitesse = 0;
+							break;
+						}
+					}
+				}
+				else{
+					//timeout serveur, on met sa vitesse à 0. On passe au serveur suivant.
+					sr[i].vitesse = 0;
+
+				}
+			}
+
+
+	}
+	i=0;
+	for(i=0;i<nbServers;i++){
+		if(sr[i].vitesse == 1)
+			break;
+	}
+	if(i==nbServers){
+		fprintf(stderr, "LES SERVEURS DE NOMS DE REPONDENT PAS\n");
 		exit(EXIT_FAILURE);
 	}
-	//ACK de l'IP
-	if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest1, addrlen)==-1){
-		perror("sendto");
-		exit(EXIT_FAILURE);
-	}
-	ip1[size]='\0';
-	(*ssd)[(count)*j].ip = malloc(size+1);
-	strncpy((*ssd)[(count)*j].ip,ip1,size);
-	//attendre le n° de port
-	if((size=recvfrom(sockfd,port,5,0,( struct sockaddr *) &dest1, &addrlen))==-1){
-		perror("recvfrom");
-		exit(EXIT_FAILURE);
-	}
-	//ACK du n° de Port
-	if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest1, addrlen)==-1){
-		perror("sendto");
-		exit(EXIT_FAILURE);
-	}
-	port[size]='\0';
-	(*ssd)[(count)*j].port=atoi(port);
-	}
-
-	count ++;
-}
-
 	return count;
 }
+
 
 //Cette fonction prend en paramètre un nom de domaine "nom", un pointeur sur tous les serveurs de Noms qui traitent son sous domaine, et retourne le premier résultat trouvé.
 server resultat(server *ssd,char *nom,int nbSousDomaines){
@@ -562,6 +635,7 @@ server resultat(server *ssd,char *nom,int nbSousDomaines){
 
 				res.ip=malloc(size+1);
 				strncpy(res.ip,ip3,size);
+				res.ip[size]='\0';
 				//ACK de l'IP
 				if(sendto(sockfd,"ack",4, 0, (struct sockaddr *) &dest3, addrlen)==-1){
 					perror("sendto");

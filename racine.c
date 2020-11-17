@@ -50,7 +50,7 @@ int main(int argc, char **argv){
 
 		//on cherche le nom de domaine dans le tableau ns, et on récupère tous les serveurs qui traitent ce nom, on let stock dans le pointeur "res".
 		int k = find_servers(&res,nbServers,ns,buf);
-		//sleep(2);
+	//	sleep(2);
 		//fonction qui envoi au client tous les k serveurs trouvés.
 		send_to_client(server_socket, &client, &addrlen, k, res);
 

@@ -111,7 +111,7 @@ int main(int argc, char **argv)
 			}
 			//SI les serveur de noms de répondent pas
 			if(result.port==-2){
-				printf("%d | %d | %s |0| %s LES SERVEURS DE NOMS DE REPONDENT PAS\n\n",r[i].id,r[i].horodatage,r[i].domaine,r[i].domaine);
+				printf("%d | %d | %s |0| %s LES SERVEURS DE NOMS NE REPONDENT PAS\n\n",r[i].id,r[i].horodatage,r[i].domaine,r[i].domaine);
 				continue;
 			}
 			//SINON

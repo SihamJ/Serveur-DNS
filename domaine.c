@@ -24,7 +24,7 @@ int main(int argc, char **argv)
   int nbServers=read_name_servers(&ns,argv[1]);
 
 
-	int size,i,round=0;
+	int size,i,round=2;
 	char buf[BLOCKSIZE],*ip,port[5],notfound[]="not found";
 	int server_socket = set_up_server(atoi(argv[2]));
 	struct sockaddr_in6 client;
@@ -37,7 +37,8 @@ while(1){
   	perror("recvfrom");
 		exit(EXIT_FAILURE);
 	}
-
+	if(i>3)
+sleep(2);
 	buf[size]='\0';
 	pt=ns;
 
