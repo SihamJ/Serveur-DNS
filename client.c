@@ -1,5 +1,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -47,7 +48,7 @@ int main(int argc, char **argv)
       	exit(EXIT_FAILURE);
     		}
 
-		//DEBUT D'ENVOI DEs REQUÊTES AUX SERVEURS
+		//DEBUT D'ENVOI DES REQUÊTES AUX SERVEURS
 		printf("\n________________________________________START________________________________________\n\n\n");
 
 		for(int i=0;i<nbRequests;i++){
@@ -56,7 +57,7 @@ int main(int argc, char **argv)
 
 			/*cette fonction cherchent à partir des serveurs racines "s" tous les serveurs de noms qui traitent le sous domaine "r[i].racine",
 			les mets dans le pointeur "sr" et retourne le nombre de serveurs trouvés.*/
-			int k = lire_serveurs_racine(&sr,s,r[i].racine,nbServers);
+			int k = trouver_serveurs_racine(&sr,s,r[i].racine,nbServers,i,0);
 
 
 			//Affichage des résultats
@@ -78,7 +79,7 @@ int main(int argc, char **argv)
 			/*Cette fonction cherchent à partir des serveurs de noms, qu'on a préalablement trouvé à l'aide
 			de la fonction précédente, tous les serveurs de noms qui traitent le sous domaine "nom", les mets
 			dans le pointeur ssd et retourne le nombre de serveurs trouvés.*/
-			int nbSousDomaines = lire_serveurs_sous_domaine(&ssd,sr,r[i].sous_domaine,k);
+			int nbSousDomaines = trouver_serveurs_sous_domaine(&ssd,sr,r[i].sous_domaine,k);
 
 			//Affichage des résultats
 			printf("%d | %d | %s\n",r[i].id,r[i].horodatage,r[i].domaine);

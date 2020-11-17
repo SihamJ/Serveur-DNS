@@ -1,5 +1,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -36,7 +37,7 @@ while(1){
   	perror("recvfrom");
 		exit(EXIT_FAILURE);
 	}
-
+	//sleep(5);
 	buf[size]='\0';
 	pt=ns;
 

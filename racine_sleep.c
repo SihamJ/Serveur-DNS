@@ -39,6 +39,7 @@ int main(int argc, char **argv){
 	server_socket = set_up_server(atoi(argv[2]));
 
 	while(1){
+
 		//On attend la réception du nom de domaine de la part du client
 		if((size=recvfrom(server_socket,buf,BLOCKSIZE,0,( struct sockaddr *) &client, &addrlen ))==-1){
 			perror("recvfrom");
