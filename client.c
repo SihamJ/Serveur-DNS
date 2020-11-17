@@ -84,6 +84,11 @@ int main(int argc, char **argv)
 			//Affichage des résultats
 			printf("%d | %d | %s\n",r[i].id,r[i].horodatage,r[i].domaine);
 
+			//tous les serveurs sont lents à répondre
+			if(nbSousDomaines==-1){
+				printf("%d | %d | %s |0| %s LES SERVEURS SONT HORS SERVICE\n\n",r[i].id,r[i].horodatage,r[i].sous_domaine,r[i].sous_domaine);
+				continue;
+			}
 			//Si aucun serveur ne traite ce domaine, on affiche le résultat et on passe à la requête suivante
 			if(nbSousDomaines==0){
 				printf("%d | %d | %s |0| %s DOMAINE INEXISTANT\n\n",r[i].id,r[i].horodatage,r[i].sous_domaine,r[i].sous_domaine);

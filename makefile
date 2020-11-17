@@ -6,11 +6,11 @@ CSRC=functions.c client_functions.c
 COBJ=$(CSRC:.c=.o)
 SH=server_functions.h functions.h
 CH=client_functions.h functions.h
-EXEC=client racine domaine racine_sleep
-SERVERS=racine domaine racine_sleep
+EXEC=client racine domaine racine_sleep domaine_sleep
+
 
 all:
-	make client $(SERVERS)
+	make $(EXEC)
 
 client: client.o $(COBJ)
 	$(CC) -o $@ $^
@@ -24,6 +24,9 @@ racine_sleep: racine_sleep.o $(SOBJ)
 domaine: domaine.o $(SOBJ)
 	$(CC) -o $@ $^
 
+domaine_sleep: domaine_sleep.o $(SOBJ)
+	$(CC) -o $@ $^
+
 %.o: %.c $(CH)
 	$(CC) -o $@ -c $<
 
@@ -34,7 +37,7 @@ domaine: domaine.o $(SOBJ)
 	$(CC) -o $@ -c $<
 
 clear:
-	rm *.o $(EXEC)
+	rm *.o $(EXEC) siham-janati.tar.gz
 
 tar:
-	tar -czvf sihamJANATI.tar.gz *.c *.h files makefile tests
+	tar -czvf siham-janati.tar.gz *.c *.h files makefile tests "doc + rapport"

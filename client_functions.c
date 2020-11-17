@@ -566,8 +566,7 @@ int trouver_serveurs_sous_domaine(server **ssd,server *sr,char *nom, int nbServe
 			break;
 	}
 	if(i==nbServers){
-		fprintf(stderr, "LES SERVEURS DE NOMS DE REPONDENT PAS\n");
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 	return count;
 }
